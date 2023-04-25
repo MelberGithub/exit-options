@@ -31,9 +31,9 @@ if [ -z "$layout" ]; then
 fi
 
 if [ "$layout" = horizontal ]; then
-    layout_OTHER = vertical
+    LAYOUTOTHER=vertical
 elif [ "$layout" = vertical ]; then
-    layout_OTHER = horizontal
+    LAYOUTOTHER=horizontal
 fi
 
 if [ -z "$Margin" ]; then
@@ -61,7 +61,7 @@ yad --plug="$fkey" --tabnum=1 --list --no-headers \
 
 
 yad --plug="$fkey" --tabnum=2 --form --text-align=left --separator="" \
---field="$(gettext 'Layout')":CB "$layout!$layout_OTHER" \
+--field="$(gettext 'Layout')":CB "$layout!$LAYOUTOTHER" \
 --field="$(gettext 'Timeout')":NUM "$timeout\!1..60\!1\!0" \
 --field="$(gettext 'Icon Size')":NUM "$IconSize\!32..128\!32\!0" \
 --field="$(gettext 'Margin')":NUM "$Margin\!0..64\!1\!0" \
