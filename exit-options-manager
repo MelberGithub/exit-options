@@ -17,6 +17,13 @@ export BTN_APPLY=$(gettext "Apply")        ; BTN_OK+='!object-select'
 
 ICONSETLIST=$(ls -f usr/share/exit-options/conf/configs_alt/*.conf )
 
+ICONSETARRAY=($ICONSETLIST)
+
+for i in "${ICONSETARRAY[@]}"
+do
+   i=$(basename $i)
+done
+
 
 ###read current config settings###
 
@@ -48,7 +55,54 @@ if [ -z "$IconSize" ]; then
     IconSize=64
 fi
 
+######################################################
+###Get images###
 
+split_arg () {
+ echo -e "\f"
+ echo "$6"
+}
+export -f split_arg
+
+export fpipe="$(mktemp -u --tmpdir fvwmei.XXXXXXXX)"
+mkfifo "$fpipe"
+trap "rm "$fpipe"" EXIT
+exec 3<> "$fpipe"
+
+
+########
+#length=${#ICONSETARRAY[@]}
+
+for i in "${ICONSETARRAY[@]}"
+do
+   ICONIMAGEADD=$(echo "false $i \"/user/share/exit-options/$i/icons/screenshot.png\" \\")
+
+   ICONIMAGE=$(echo -e "$ICONIMAGEADD \n$ICONIMAGE")
+   
+done
+
+##########
+
+#    false $ICONSET "/user/share/exit-options/$ICONSET/icons/screenshot.png" \
+
+yad --plug=$fkey --tabnum=1 \
+    --select-action='bash -c "split_arg %s >$fpipe"' \
+    --hide-column=6 \
+    --list --checklist \
+    --width=900 --height=650 \
+    --column=Iconset --column="" \
+    $ICONIMAGE
+    >$ICONSET &
+    
+yad --plug=$fkey --tabnum=2 --list --no-headers --listen --cycle-read --column=":IMG" <&3  &
+
+yad --paned --key=$fkey --title="Extension Installer" \
+    --center --orient=Horizontal --splitter=500 --width=800 --height=600
+    
+exec 3>&-
+
+
+############################################
 
 
 ###MAIN###
@@ -60,7 +114,7 @@ yad --plug="$fkey" --tabnum=1 --list --no-headers \
 < $ICONSETLIST > $ICONSET &
 
 
-yad --plug="$fkey" --tabnum=2 --form --text-align=left --separator="" \
+yad --plug="$fkey" --tabnum=3 --form --text-align=left --separator="" \
 --field="$(gettext 'Layout')":CB "$layout!$LAYOUTOTHER" \
 --field="$(gettext 'Timeout')":NUM "$timeout\!1..60\!1\!0" \
 --field="$(gettext 'Icon Size')":NUM "$IconSize\!32..128\!32\!0" \
