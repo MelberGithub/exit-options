@@ -1,10 +1,27 @@
 #!/bin/bash
 #exit-options-manager
+#V.0.1 25.04.2023
+
+# add locale
+#TEXTDOMAINDIR=/usr/share/locale 
+#export TEXTDOMAIN="exit-options-manager"
+#source gettext.sh
 
 #define some variables
 TITLE="$(gettext 'Exit-options-manager')"
 CLASS="eom"
 ICONPATH="/usr/share/pixmaps/exit-options-manager.svg"
+
+CONFIG_PATH_USR="/usr/share/exit-options/conf"
+ICON_PATH_USR="/usr/share/exit-options"
+
+res1=/tmp/eom-1.txt
+res2=/tmp/eom-2.txt
+
+
+# cleanup
+#trap "rm -f $res1 $res2" EXIT
+
 
 # buttons
 export BTN_ABOUT=$(gettext "About")  ; BTN_ABOUT+='!help-about'
@@ -15,19 +32,20 @@ export BTN_APPLY=$(gettext "Apply")        ; BTN_OK+='!object-select'
 
 ###Get list of themes###
 
-ICONSETLIST=$(ls -f usr/share/exit-options/conf/configs_alt/*.conf )
-
-ICONSETARRAY=($ICONSETLIST)
-
-for i in "${ICONSETARRAY[@]}"
-do
-   i=$(basename $i)
-done
-
+ICONLIST=$(ls -d $ICON_PATH_USR/* | sed -e 's/\/usr\/share\/exit-options\/conf//' )
+ICON_ARRAY=($ICONLIST)
 
 ###read current config settings###
 
+sed -i "s/\[General\]/\#\[General\]/" $HOME/.config/MX-Linux/exit-options.conf
+sed -i "s/geometry/\#geometry/" $HOME/.config/MX-Linux/exit-options.conf
+sed -i "s/\%23//g" $HOME/.config/MX-Linux/exit-options.conf
+
 source $HOME/.config/MX-Linux/exit-options.conf
+
+sed -i "s/\#\[General\]/\[General\]/" $HOME/.config/MX-Linux/exit-options.conf
+sed -i "s/\#geometry/geometry/" $HOME/.config/MX-Linux/exit-options.conf
+
 
 if [ -z "$timeout" ]; then
     timeout=10
@@ -44,11 +62,11 @@ elif [ "$layout" = vertical ]; then
 fi
 
 if [ -z "$Margin" ]; then
-    Margin=6
+    Margin=24
 fi
 
 if [ -z "$Spacing" ]; then
-    Spacing=12
+    Spacing=24
 fi
 
 if [ -z "$IconSize" ]; then
@@ -58,94 +76,60 @@ fi
 ######################################################
 ###Get images###
 
-split_arg () {
- echo -e "\f"
- echo "$6"
-}
-export -f split_arg
-
-export fpipe="$(mktemp -u --tmpdir fvwmei.XXXXXXXX)"
-mkfifo "$fpipe"
-trap "rm "$fpipe"" EXIT
-exec 3<> "$fpipe"
-
-
-########
-#length=${#ICONSETARRAY[@]}
-
-for i in "${ICONSETARRAY[@]}"
+for i in "${ICON_ARRAY[@]}"
 do
-   ICONIMAGEADD=$(echo "false $i \"/user/share/exit-options/$i/icons/screenshot.png\" \\")
-
-   ICONIMAGE=$(echo -e "$ICONIMAGEADD \n$ICONIMAGE")
-   
+   IMAGE_ADD=$(echo "false $i/screenshot.png")
+   IMAGES=$(echo -e "$IMAGES $IMAGE_ADD")
 done
 
-##########
 
-#    false $ICONSET "/user/share/exit-options/$ICONSET/icons/screenshot.png" \
-
-yad --plug=$fkey --tabnum=1 \
-    --select-action='bash -c "split_arg %s >$fpipe"' \
-    --hide-column=6 \
-    --list --checklist \
-    --width=900 --height=650 \
-    --column=Iconset --column="" \
-    $ICONIMAGE
-    >$ICONSET &
-    
-yad --plug=$fkey --tabnum=2 --list --no-headers --listen --cycle-read --column=":IMG" <&3  &
-
-yad --paned --key=$fkey --title="Extension Installer" \
-    --center --orient=Horizontal --splitter=500 --width=800 --height=600
-    
-exec 3>&-
-
-
-############################################
-
+############################
 
 ###MAIN###
 
-fkey=5678
-
-yad --plug="$fkey" --tabnum=1 --list --no-headers \
---column=Style --text-align=left --separator="" \
-< $ICONSETLIST > $ICONSET &
+fkey=$RANDOM
 
 
-yad --plug="$fkey" --tabnum=3 --form --text-align=left --separator="" \
+yad --plug=$fkey --tabnum=1 \
+    --list --radiolist --column=Select --column=":IMG" $IMAGES >$res2 &
+
+
+yad --plug=$fkey --tabnum=2 --form --columns=3 --text-align=left --separator=" " \
 --field="$(gettext 'Layout')":CB "$layout!$LAYOUTOTHER" \
 --field="$(gettext 'Timeout')":NUM "$timeout\!1..60\!1\!0" \
 --field="$(gettext 'Icon Size')":NUM "$IconSize\!32..128\!32\!0" \
---field="$(gettext 'Margin')":NUM "$Margin\!0..64\!1\!0" \
---field="$(gettext 'Spacing')":NUM "$Spacing\!0..64\!1\!0" \
---field=" ":LBL " " \
-> $YADSETTINGS &
+--field="$(gettext 'Margin')":NUM "$Margin\!0..64\!6\!0" \
+--field="$(gettext 'Spacing')":NUM "$Spacing\!0..64\!6\!0" \
+> $res1 &
 
 
+# run main dialog
 
-TEXT1="$(gettext 'Select icon set and settings for exit-options')"
+TEXTMAIN="$(gettext 'Settings for exit-options')"
 
-yad --paned --key="$fkey" --title="$TITLE" --class="$CLASS" --window-icon="$ICONPATH" \
---text="$TEXT1\n$TEXT2\n" --width=600 --height=400 --borders=20 --center --fixed \
---button="${BTN_CLOSE}":4 --button="${BTN_APPLY}":3
+yad --notebook --key=$fkey --tab="Theme" --tab="Settings" \
+    --title="$TITLE" --class="$CLASS" --window-icon="$ICONPATH" \
+    --width=600 --height=500 --borders=20 --center --text="$TEXTMAIN" \
+    --button="${BTN_CLOSE}":1 --button="${BTN_APPLY}":0 \
 
 
 RET=$?
-    (( RET != 3 )) && exit
+    (( RET != 0 )) && exit
 
-
-eval TAB1=($(< $ICONSET))
-eval TAB2=($(< $YADSETTINGS))
+read -r -a ICONSET < $res2
+read -r -a YADSETTINGS < $res1
 
 
 ###Apply Theme###
 
-cp $TAB1 $HOME/.config/MX-Linux/exit-options.conf
+if [ "$ICONSET" != "" ]; then
+    cp $ICONSET $HOME/.config/MX-Linux/exit-options.conf
+fi
 
 
 ###Apply Settings###
+
+sed -i "s/\#//g" $HOME/.config/MX-Linux/exit-options.conf
 
 OLDLAYOUT="$(grep 'layout=' $HOME/.config/MX-Linux/exit-options.conf  | sed -e "s/layout=//")"
 OLDTIMEOUT="$(grep 'timeout=' $HOME/.config/MX-Linux/exit-options.conf  | sed -e "s/timeout=//")"
@@ -153,36 +137,36 @@ OLDICONSIZE="$(grep 'IconSize=' $HOME/.config/MX-Linux/exit-options.conf  | sed 
 OLDMARGIN="$(grep 'Margin=' $HOME/.config/MX-Linux/exit-options.conf  | sed -e "s/Margin=//")"
 OLDSPACING="$(grep 'Spacing=' $HOME/.config/MX-Linux/exit-options.conf  | sed -e "s/Spacing=//")"
 
-NEWLAYOUT="${TAB2[0]}"
-NEWTIMEOUT="${TAB2[1]}"
-NEWICONSIZE="${TAB2[2]}"
-NEWMARGIN="${TAB2[3]}"
-NEWSPACING="${TAB2[4]}"
+NEWLAYOUT="${YADSETTINGS[0]}"
+NEWTIMEOUT="${YADSETTINGS[1]}"
+NEWICONSIZE="${YADSETTINGS[2]}"
+NEWMARGIN="${YADSETTINGS[3]}"
+NEWSPACING="${YADSETTINGS[4]}"
 
 
 if [ "$NEWLAYOUT" != "$OLDLAYOUT" ]; then
-    sed -i "s/${OLDLAYOUT}/${NEWLAYOUT}/" $HOME/.config/MX-Linux/exit-options.conf
+    sed -i "s/layout=${OLDLAYOUT}/layout=${NEWLAYOUT}/" $HOME/.config/MX-Linux/exit-options.conf
 fi
 
 if [ "$NEWTIMEOUT" != "$OLDTIMEOUT" ]; then
-    sed -i "s/${OLDTIMEOUT}/${NEWTIMEOUT}/" $HOME/.config/MX-Linux/exit-options.conf
+    sed -i "s/timeout=${OLDTIMEOUT}/timeout=${NEWTIMEOUT}/" $HOME/.config/MX-Linux/exit-options.conf
 fi
 
 if [ "$NEWICONSIZE" != "$OLDICONSIZE" ]; then
-    sed -i "s/${OLDICONSIZE}/${NEWICONSIZE}/" $HOME/.config/MX-Linux/exit-options.conf
+    sed -i "s/IconSize=${OLDICONSIZE}/IconSize=${NEWICONSIZE}/" $HOME/.config/MX-Linux/exit-options.conf
 fi
 
 if [ "$NEWMARGIN" != "$OLDMARGIN" ]; then
-    sed -i "s/${OLDMARGIN}/${NEWMARGIN}/" $HOME/.config/MX-Linux/exit-options.conf
+    sed -i "s/Margin=${OLDMARGIN}/Margin=${NEWMARGIN}/" $HOME/.config/MX-Linux/exit-options.conf
 fi
 
 if [ "$NEWSPACING" != "$OLDSPACING" ]; then
-    sed -i "s/${OLDSPACING}/${NEWSPACING}/" $HOME/.config/MX-Linux/exit-options.conf
+    sed -i "s/Spacing=${OLDSPACING}/Spacing=${NEWSPACING}/" $HOME/.config/MX-Linux/exit-options.conf
 fi
 
 
-TEXTDONE1="$(eval_gettext 'All done!')"
-TEXTDONE2="$(eval_gettext 'Changes to exit-options settings applied.')"
+TEXTDONE1="$(gettext 'All done!')"
+TEXTDONE2="$(gettext 'Changes to exit-options settings applied.')"
 
 	yad --title="$TITLE" --class="$CLASS" --window-icon="$ICONPATH" \
 	--width=400 --height=200 --fixed --center --borders=20 \
