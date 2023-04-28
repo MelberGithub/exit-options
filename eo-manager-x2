@@ -1,0 +1,210 @@
+#!/bin/bash
+#exit-options-manager
+#V.0.x1 28.04.2023
+
+# add locale
+#TEXTDOMAINDIR=/usr/share/locale 
+#export TEXTDOMAIN="exit-options-manager"
+#source gettext.sh
+
+#define some variables
+TITLE="$(gettext 'Exit-options-manager')"
+CLASS="eom"
+ICONPATH="/usr/share/pixmaps/exit-options-manager.svg"
+
+CONFIG_PATH_USR="/usr/share/exit-options/conf"
+#ICON_PATH_USR="/usr/share/exit-options"
+
+CONFIG_PATH_HOME="$HOME/.config/exit-options/conf"
+#ICON_PATH_HOME="$HOME/.config/exit-options"
+
+CONF_FILE="$HOME/.config/MX-Linux/exit-options.conf"
+
+res1=/tmp/eom-1.txt
+res2=/tmp/eom-2.txt
+
+
+# cleanup
+#trap "rm -f $res1 $res2" EXIT
+
+
+# buttons
+export BTN_ABOUT=$(gettext "About")  ; BTN_ABOUT+='!help-about'
+export BTN_CLOSE=$(gettext "Close")  ; BTN_CLOSE+='!window-close'
+export BTN_HELP=$(gettext "Help")    ; BTN_HELP+='!help-contents'
+export BTN_OK=$(gettext "OK")        ; BTN_OK+='!object-select'
+export BTN_APPLY=$(gettext "Apply")        ; BTN_OK+='!object-select'
+
+###Get list of themes###
+
+CONFIG_LIST=$(ls -d $CONFIG_PATH_HOME/*.conf | ls -d $CONFIG_PATH_USR/*.conf )
+
+CONFIG_ARRAY=($CONFIG_LIST)
+
+
+######################################################
+###Get images###
+
+#CONFIG_CURRENT=$( echo $LogoutIcon | sed -e "s/\/logout\.png//" )
+
+for i in "${CONFIG_ARRAY[@]}"
+do
+
+sed -i "s/\[General\]/\#\[General\]/" $i
+sed -i "s/geometry/\#geometry/" $i
+sed -i "s/\%23//g" $i
+
+source $i
+
+sed -i "s/\#\[General\]/\[General\]/" $i
+sed -i "s/\#geometry/geometry/" $i
+
+#    if [ $i = "$ICON_CURRENT" ]; then
+ #      IMAGE_ADD=$(echo "true $i $i/refresh.png $i/lock.png $i/logout.png $i/suspend.png $i/reboot.png $i/shutdown.png")
+ #   else
+#       IMAGE_ADD=$(echo "false $i $i/refresh.png $i/lock.png $i/logout.png $i/suspend.png $i/reboot.png $i/shutdown.png")
+#    fi
+
+    if [ $i = "$CONFIG_NAME" ]; then
+       IMAGE_ADD=$(echo "true $i $RestartFluxbox $LockIcon $LogoutIcon $iSuspendIcon $RebootIcon $ShutdownIcon")
+    else
+       IMAGE_ADD=$(echo "false $i $RestartFluxbox $LockIcon $LogoutIcon $iSuspendIcon $RebootIcon $ShutdownIcon")
+    fi
+
+   IMAGES=$(echo -e "$IMAGES $IMAGE_ADD")
+ 
+done
+
+
+############################
+
+###Read current conf file###
+
+sed -i "s/\[General\]/\#\[General\]/" $CONF_FILE
+sed -i "s/geometry/\#geometry/" $CONF_FILE
+sed -i "s/\%23//g" $CONF_FILE
+
+source $CONF_FILE
+
+
+if [ -z "$timeout" ]; then
+    timeout=10
+fi
+
+if [ -z "$layout" ]; then
+    layout=horizontal
+fi
+
+if [ "$layout" = horizontal ]; then
+    LAYOUTOTHER=vertical
+elif [ "$layout" = vertical ]; then
+    LAYOUTOTHER=horizontal
+fi
+
+if [ -z "$Margin" ]; then
+    Margin=24
+fi
+
+if [ -z "$Spacing" ]; then
+    Spacing=24
+fi
+
+if [ -z "$IconSize" ]; then
+    IconSize=64
+fi
+
+sed -i "s/\#\[General\]/\[General\]/" $CONF_FILE
+sed -i "s/\#geometry/geometry/" $CONF_FILE
+
+###MAIN###
+
+fkey=$RANDOM
+
+
+yad --plug=$fkey --tabnum=1 --separator=" " \
+    --list --radiolist --print-column=2 --column=Select --column=Icon theme --column=":IMG" --column=":IMG" --column=":IMG" --column=":IMG" --column=":IMG" --column=":IMG" $IMAGES >$res2 &
+
+
+yad --plug=$fkey --tabnum=2 --form --columns=3 --text-align=left --separator=" " \
+--field="$(gettext 'Layout')":CB "$layout!$LAYOUTOTHER" \
+--field="$(gettext 'Timeout')":NUM "$timeout\!1..60\!1\!0" \
+--field="$(gettext 'Icon Size')":NUM "$IconSize\!32..64\!16\!0" \
+--field="$(gettext 'Margin')":NUM "$Margin\!0..64\!6\!0" \
+--field="$(gettext 'Spacing')":NUM "$Spacing\!0..64\!6\!0" \
+> $res1 &
+
+
+# run main dialog
+
+TEXTMAIN="$(gettext 'Settings for exit-options')"
+
+yad --notebook --key=$fkey --tab="Theme" --tab="Settings" \
+    --title="$TITLE" --class="$CLASS" --window-icon="$ICONPATH" \
+    --width=600 --height=500 --borders=20 --center --text="$TEXTMAIN" \
+    --button="${BTN_CLOSE}":1 --button="${BTN_APPLY}":0 \
+
+
+RET=$?
+    (( RET != 0 )) && exit
+
+read -r -a ICONSET < $res2
+read -r -a YADSETTINGS < $res1
+
+ICON_GETNAME=$( echo $ICONSET | sed -e "s/\/usr\/share\/exit-options\/
+//" | sed -e "s/$HOME\/\.config\/exit-options\///" )
+
+
+###Apply Theme###
+
+if [ "$ICONSET" != "ICON_CURRENT" ]; then
+    cp $ICONSET/conf/$ICON_GETNAME-exit-options.conf $CONF_FILE
+fi
+
+
+###Apply Settings###
+
+#sed -i "s/\#//g" $HOME/.config/MX-Linux/exit-options.conf
+
+OLDLAYOUT="$(grep 'layout=' $CONF_FILE | sed -e "s/layout=//")"
+OLDTIMEOUT="$(grep 'timeout=' $CONF_FILE | sed -e "s/timeout=//")"
+OLDICONSIZE="$(grep 'IconSize=' $CONF_FILE | sed -e "s/IconSize=//")"
+OLDMARGIN="$(grep 'Margin=' $CONF_FILE | sed -e "s/Margin=//")"
+OLDSPACING="$(grep 'Spacing=' $CONF_FILE | sed -e "s/Spacing=//")"
+
+NEWLAYOUT="${YADSETTINGS[0]}"
+NEWTIMEOUT="${YADSETTINGS[1]}"
+NEWICONSIZE="${YADSETTINGS[2]}"
+NEWMARGIN="${YADSETTINGS[3]}"
+NEWSPACING="${YADSETTINGS[4]}"
+
+
+if [ "$NEWLAYOUT" != "$OLDLAYOUT" ]; then
+    sed -i "s/layout=${OLDLAYOUT}/layout=${NEWLAYOUT}/" $CONF_FILE
+fi
+
+if [ "$NEWTIMEOUT" != "$OLDTIMEOUT" ]; then
+    sed -i "s/timeout=${OLDTIMEOUT}/timeout=${NEWTIMEOUT}/" $CONF_FILE
+fi
+
+if [ "$NEWICONSIZE" != "$OLDICONSIZE" ]; then
+    sed -i "s/IconSize=${OLDICONSIZE}/IconSize=${NEWICONSIZE}/" $CONF_FILE
+fi
+
+if [ "$NEWMARGIN" != "$OLDMARGIN" ]; then
+    sed -i "s/Margin=${OLDMARGIN}/Margin=${NEWMARGIN}/" $CONF_FILE
+fi
+
+if [ "$NEWSPACING" != "$OLDSPACING" ]; then
+    sed -i "s/Spacing=${OLDSPACING}/Spacing=${NEWSPACING}/" $CONF_FILE
+fi
+
+
+TEXTDONE1="$(gettext 'All done!')"
+TEXTDONE2="$(gettext 'Changes to exit-options settings applied.')"
+
+	yad --title="$TITLE" --class="$CLASS" --window-icon="$ICONPATH" \
+	--width=400 --height=200 --fixed --center --borders=20 \
+	--text="$TEXTDONE1\n$TEXTDONE2\n" --text-align=center --button="${BTN_OK}" \
+
+
+exit
